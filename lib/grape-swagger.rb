@@ -90,14 +90,15 @@ module Grape
                 notes = route.route_notes && @@markdown ? Kramdown::Document.new(route.route_notes.strip_heredoc).to_html : route.route_notes
                 http_codes = parse_http_codes route.route_http_codes
                 parameters = []
+                parameters = parse_params(route.route_params, route.route_path, route.route_method)
+                
                 if (route.route_object_fields)
-                  parameters = parse_object_fields(route.route_object_fields)                
-                  models[parameters[0][:dataType]] = {
+                  parameters_model = parse_object_fields(route.route_object_fields)
+                  models[parameters_model[0][:dataType]] = {
                     properties: parse_model_parameters(route.route_object_fields)
                   }
-                else
-                  parameters = parse_params(route.route_params, route.route_path, route.route_method)
                 end
+                
                 operations = {
                     :notes => notes,
                     :summary => route.route_description || '',
@@ -105,6 +106,9 @@ module Grape
                     :httpMethod => route.route_method,
                     :parameters => parse_header_params(route.route_headers) + parameters
                 }
+               
+                operations.merge!({:responseClass => parameters_model[0][:name]}) if (route.route_object_fields)
+
                 operations.merge!({:errorResponses => http_codes}) unless http_codes.empty?
                 {
                   :path => parse_path(route.route_path, api_version),
@@ -165,13 +169,13 @@ module Grape
 
             def parse_model_parameters(params)
               if params
-                model_params = params.select do |param, value| 
+                model_params = params.select do |param, value|
                   param != :type && param != :desc && value.class != String
                 end
                 model = {}
                 model_params.each_pair do |param, value|
                   model[param] = {:type => value[:type]}
-                end 
+                end
                 model
               else
                []
